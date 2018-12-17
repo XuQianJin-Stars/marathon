@@ -19,6 +19,16 @@ object Dependencies {
     wixAccord % "compile"
   )
 
+  val scheduler = Seq(
+    akkaActor % "compile",
+    akkaStream % "compile",
+    asyncAwait % "compile",
+    mesos % "compile",
+    playJson % "compile",
+    scalaLogging % "compile",
+    uuidGenerator % "compile"
+  )
+
   val mesosClient = Seq(
     playJson % "compile",
     scalaLogging % "compile",
