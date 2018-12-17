@@ -1,11 +1,16 @@
 package mesosphere.marathon
 package state
 
+import java.time.format.{DateTimeFormatter, DateTimeParseException}
 import java.time.{Duration, Instant, OffsetDateTime, ZoneOffset}
 import java.util.concurrent.TimeUnit
 
+import org.apache.mesos
+
 import scala.concurrent.duration.FiniteDuration
+import scala.language.implicitConversions
 import scala.math.Ordered
+import scala.util.{Failure, Success, Try}
 
 /**
   * An ordered wrapper for UTC timestamps.
@@ -44,4 +49,61 @@ abstract case class Timestamp private (private val instant: Instant) extends Ord
 
   def +(duration: FiniteDuration): Timestamp = Timestamp(instant.plusMillis(duration.toMillis))
   def -(duration: FiniteDuration): Timestamp = Timestamp(instant.minusMillis(duration.toMillis))
+}
+
+object Timestamp {
+  def apply(offsetDateTime: OffsetDateTime): Timestamp =
+    apply(offsetDateTime.toInstant)
+
+  /**
+    * Returns a new Timestamp representing the instant that is the supplied
+    * dateTime converted to UTC.
+    */
+  def apply(instant: Instant): Timestamp = new Timestamp(instant) {} // linter:ignore TypeToType
+
+  /**
+    * Returns a new Timestamp representing the instant that is the supplied
+    * number of milliseconds after the epoch.
+    */
+  def apply(ms: Long): Timestamp = Timestamp(Instant.ofEpochMilli(ms))
+
+  /**
+    * Returns a new Timestamp representing the supplied time.
+    */
+  def apply(time: String): Timestamp = Timestamp(Try(OffsetDateTime.parse(time)) match {
+    case Success(parsed) => parsed
+    case Failure(e: DateTimeParseException) => throw new IllegalArgumentException(s"Invalid timestamp provided '$time'. Expecting ISO-8601 datetime string.", e)
+    case Failure(e) => throw e
+  })
+
+  /**
+    * Returns a new Timestamp representing the current instant.
+    */
+  def now(): Timestamp = Timestamp(Instant.now())
+
+  def now(clock: java.time.Clock): Timestamp =
+    Timestamp(Instant.now(clock))
+
+  def zero: Timestamp = Timestamp(0)
+
+  /**
+    * Convert Mesos TimeInfo to Timestamp.
+    * @return Timestamp for TimeInfo
+    */
+  implicit def toTimestamp(timeInfo: mesos.Protos.TimeInfo): Timestamp = {
+    apply(TimeUnit.NANOSECONDS.toMillis(timeInfo.getNanoseconds))
+  }
+
+  /**
+    * Convert Mesos TaskStatus to Timestamp.
+    * @return Timestamp based on the timestamp (in seconds) from the given TaskStatus
+    */
+  def fromTaskStatus(taskStatus: mesos.Protos.TaskStatus): Timestamp = {
+    apply(TimeUnit.SECONDS.toMillis(taskStatus.getTimestamp.toLong))
+  }
+
+  /*
+   * .toString in java.time is truncating zeros in millis part, so we use custom formatter to keep them
+   */
+  val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC)
 }
