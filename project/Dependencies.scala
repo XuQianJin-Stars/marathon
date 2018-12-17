@@ -26,6 +26,7 @@ object Dependencies {
     mesos % "compile",
     playJson % "compile",
     scalaLogging % "compile",
+    scallop % "compile",
     uuidGenerator % "compile"
   )
 
